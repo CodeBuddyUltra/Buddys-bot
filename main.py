@@ -4,13 +4,13 @@
 
 import aiohttp
 import discord
-from discord import  ui, app_commands, utils
-from discord.ext import commands
+from discord import  ui, app_commands
+
 import json
 import time
-import interactions
+
 from typing import Literal
-import asyncio
+
 from datetime import datetime
 
 now = datetime.now()
@@ -70,6 +70,7 @@ class client(discord.Client):
 
     async def on_ready(self):
         await self.wait_until_ready()
+        """
         guild = aclient.get_guild(811461860200022025)
 
         uptime_channel = discord.utils.get(guild.text_channels, name='📡・bot-status')
@@ -83,6 +84,7 @@ class client(discord.Client):
 
 
         await uptime_channel.send(embed=uptime_embed)
+        """
         if not self.synced:
             await tree.sync(guild = discord.Object(id = 811461860200022025))
             self.synced = True
