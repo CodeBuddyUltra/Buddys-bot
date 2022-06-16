@@ -4,7 +4,7 @@
 
 import aiohttp
 import discord
-from discord import  ui, app_commands
+from discord import  ui, app_commands, utils
 from discord.ext import commands
 import json
 import time
@@ -20,28 +20,46 @@ TICKET_CATEGORY_NAME = "Active Tickets"
 intents = discord.Intents.default()
 intents.members = True
 intents.message_content = True
-bot = commands.Bot(command_prefix = '>', intents=intents)
+
+
 from config import token
 
 
-async def on_ready():
-    await bot.change_presence(activity=discord.Game(name="a game"))
 
+    
 
 class client(discord.Client):
     def __init__(self):
         super().__init__(intents = discord.Intents.default())
         self.synced= False
-
+        self.added= False
+        self.role = 986515497669525544
     async def on_ready(self):
         await self.wait_until_ready()
         
+    
         
         if not self.synced:
             await tree.sync(guild = discord.Object(id = 811461860200022025))
             self.synced = True
+        if not self.added:
+            self.add_view(button_view())
+            self.added = True
         print(f"We have logged in as {self.user}.")
         
+class button_view(discord.ui.View):
+    def __init__(self) -> None:
+        super().__init__(timeout=None)
+
+    @discord.ui.button(label="Accept", style = discord.ButtonStyle.green, custom_id="accept")
+    async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+        if type(aclient.role) is not discord.Role:
+            aclient.role = interaction.guild.get_role(986515497669525544)
+        if aclient.role not in interaction.user.roles:
+            await interaction.user.add_roles(aclient.role)
+            await interaction.response.send_message(f"Successfully accepted the user as {aclient.role.mention}!", ephemeral=True)
+        else:
+            await interaction.response.send_message(f"Can't accept an existing staff!", ephemeral=True)
 
 class my_modal(ui.Modal, title = "Example Modal"):
     answer = ui.TextInput(label = "Is it working?", style=discord.TextStyle.short, placeholder = "Your username with discriminator", default = "Vixen#1203", required= True, max_length = 10)
@@ -64,14 +82,17 @@ class application_modal(ui.Modal, title = "Application"):
     question_5 = ui.TextInput(label = "Why should we pick you above everyone else?", style=discord.TextStyle.short, required= True, max_length = 20)
 
     async def on_submit(self, interaction: discord.Interaction):
-       
+        guild = interaction.guild
+        channel = discord.utils.get(guild.text_channels, name='🔧・testing')
+
+        
         embed = discord.Embed(title = self.title,
         description= f"**{self.question_1.label}** \n {self.question_1} \n \n **{self.question_2.label}** \n {self.question_2} \n \n **{self.question_3.label}** \n {self.question_3} \n \n **{self.question_4.label}** \n {self.question_4} \n \n **{self.question_5.label}** \n {self.question_5}",
         colour= discord.Color.blurple())
         embed.set_author(name = interaction.user, icon_url=interaction.user.avatar)
 
 
-        await interaction.response.send_message(embed=embed)
+        await channel.send(embed=embed, view=button_view())
 aclient = client()
 tree = app_commands.CommandTree(aclient)
 
@@ -88,7 +109,7 @@ async def test(interaction: discord.Interaction):
     await interaction.response.send_message("Hey the test worked!")
 
 @tree.command( guild = discord.Object(id = 811461860200022025), name = 'create_channel', description = "Creates a test channel")
-async def create_channel(interaction: discord.Interaction, channel_type: Literal['text', 'voice', 'stage'], name: str, topic:str, category: discord.CategoryChannel, slowmode:int):
+async def create_channel(interaction: discord.Interaction, channel_type: Literal['text', 'voice', 'stage'], name: str, topic:str = None, category: discord.CategoryChannel = None, slowmode:int = None):
     guild = interaction.guild
     if channel_type == "text":
         try:
@@ -119,11 +140,11 @@ async def create_channel(interaction: discord.Interaction, channel_type: Literal
 
         
 
-@tree.command(name = 'mention', description = "Mentions the desired user")
+@tree.command( guild = discord.Object(id = 811461860200022025),name = 'mention', description = "Mentions the desired user")
 async def mention(interaction: discord.Interaction , user_to_mention: discord.User):
     await interaction.response.send_message(f"{user_to_mention.mention} mentioned by {interaction.user.mention}")    
 
-@tree.command( name = 'ticket', description = "Creates a support ticket")
+@tree.command(  guild = discord.Object(id = 811461860200022025),name = 'ticket', description = "Creates a support ticket")
 async def ticket(interaction: discord.Interaction, reason :str):
     guild = interaction.guild
     """options = [interaction.Option(
@@ -142,7 +163,7 @@ async def ticket(interaction: discord.Interaction, reason :str):
     }
     
     
-    channel_ticket = await guild.create_text_channel(f"{interaction.user}", overwrites=overwrites)
+    channel_ticket = await guild.create_text_channel(f"ticket-{interaction.user}",  topic = interaction.user.id, overwrites=overwrites)
     em_1 = discord.Embed(
         title = f"Help needed by {interaction.user}",
         description= f"Please wait for the staff team to get back to you. They created the ticket with reason : **{reason}**"
@@ -159,11 +180,11 @@ async def eval(interaction: discord.Interaction):
     await interaction.response.send_message("Evaluated your code")
 
 
-@tree.command( name = 'application', description = "Staff application")
+@tree.command(  guild = discord.Object(id = 811461860200022025), name = 'application', description = "Staff application")
 
-async def eval(interaction: discord.Interaction):
+async def application(interaction: discord.Interaction):
     
-    channel = bot.get_channel(984434566204915742)
+    channel = aclient.get_channel(984434566204915742)
 
     
     await interaction.response.send_modal(application_modal())
@@ -197,7 +218,16 @@ async def apply(interaction:discord.Interaction):
 
     await interaction.response.send_message(embed=emb_apply)
 
+"""
+@client.event
+async def on_member_join(member):
+    welcome_embed = discord.Embed(
+        title="Welcome!",
+        description= f"<:memberadd:986552556476059739> Welcome the server {member.mention} \n Make sure to check out <#938830951545458698> and <#986515513658196010> \n \n Visit <#986515517957365810>, <#986515519010131988> or <#986515520780107786> to keep up with the bot's latest update"    )
+    welcome_embed.set_author(name = f"{member.name}", icon_url= member.avatar)
+    await member.send(f"Welcome to the server {member.mention}", embed=welcome_embed)
 
+"""
 @tree.command(
     guild = discord.Object(id = 811461860200022025), name = 'nightmare', description = "Pings nightmare. DON'T USE IN ANY CASE UNLESS YOU WANT TO BE BANNED!")
 async def nightmare(interaction: discord.Interaction):
@@ -248,12 +278,22 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
 @tree.command(
     guild = discord.Object(id = 811461860200022025), name = 'slowmode', description = "Set the slowmode")
 async def slowmode(interaction:discord.Interaction, channel: discord.TextChannel, slowmode:int):
-    
+    slow_embed = discord.Embed(
+        title="Setting Slowmode",
+        description=f"<:slowmode:986583183212556308> Successfully set the slowmode to {slowmode} seconds! "
+    )
     await channel.edit(slowmode_delay=slowmode)
     if slowmode == 0:
-        await interaction.response.send_message(f"Disabled slowmode")
+        slow_disable = discord.Embed(
+            title = "Disabling Slowmode",
+            description= f"<:off1:986583210672680981> Successfully disabled slowmode")
+        await interaction.response.send_message(embed=slow_disable)
     else:
-        await interaction.response.send_message(f"Set the slowmode to {slowmode} seconds!")
+        slow_embed = discord.Embed(
+        title="Setting Slowmode",
+        description=f"<:slowmode:986583183212556308> Successfully set the slowmode to {slowmode} seconds! "
+    )
+        await interaction.response.send_message(embed=slow_embed)
     
 @tree.command(guild = discord.Object(id = 811461860200022025), name = 'help', description = "Gets help about various commands")
 async def help(interaction:discord.Interaction):
