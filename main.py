@@ -11,6 +11,11 @@ import time
 import interactions
 from typing import Literal
 import asyncio
+from datetime import datetime
+
+now = datetime.now()
+
+current_time = now.strftime("%H:%M:%S")
 
 activity = discord.Activity(name='my activity', type=discord.ActivityType.watching)
 
@@ -43,7 +48,18 @@ class client(discord.Client):
         color= discord.Color.red()   )
         bye_bye_embed.set_author(name = f"{member.name}", icon_url= member.avatar)
         await member.send(f"Goodbye {member.mention}", embed=bye_bye_embed)
+    
+    async def on_guild_join(self, guild):
+        true_guild = aclient.get_guild(811461860200022025)
+        true_member_count = len([m for m in guild.members if not m.bot])
+        added_embed= discord.Embed(
+            title = "Bot has been added to another guild",
+            description = f"**Guild name**: `{guild.name}` \n **Membercount**: `{true_member_count}`"
+        )
+        guild_channel = discord.utils.get(true_guild.text_channels, name = '➕・guild-added')
 
+        await guild_channel.send(embed=added_embed)
+       
     async def on_member_join(self, member):
         welcome_embed = discord.Embed(
         title="Welcome!",
@@ -54,9 +70,19 @@ class client(discord.Client):
 
     async def on_ready(self):
         await self.wait_until_ready()
-        
+        guild = aclient.get_guild(811461860200022025)
 
-        
+        uptime_channel = discord.utils.get(guild.text_channels, name='📡・bot-status')
+
+        uptime_embed = discord.Embed(
+            title = "Bot is online",
+            description= f" <:link:986552561052024882> Successfully logged in as {self.user}. \n \n Responding to commands",
+            color=discord.Color.green()
+        )
+        uptime_embed.set_footer(text= current_time)
+
+
+        await uptime_channel.send(embed=uptime_embed)
         if not self.synced:
             await tree.sync(guild = discord.Object(id = 811461860200022025))
             self.synced = True
@@ -70,7 +96,7 @@ class ticket_button(discord.ui.View):
     def __init__(self) -> None:
         super().__init__(timeout=None)
     
-    @discord.ui.button(label="Close", style = discord.ButtonStyle.red, custom_id="close")
+    @discord.ui.button(label="Close", style = discord.ButtonStyle.red, custom_id="close", emoji="<:delete:986581594192109648>")
     async def close(self, interaction:discord.Interaction, button: discord.ui.Button):
         await interaction.channel.delete()
 
@@ -210,9 +236,9 @@ async def ticket(interaction: discord.Interaction, reason :str):
         guild.me: discord.PermissionOverwrite(view_channel=True)
         
     }
+    ticket_category = discord.utils.get(interaction.guild.categories, name="📨 | ==== Support ==== | 📨")
     
-    
-    channel_ticket = await guild.create_text_channel(f"ticket-{interaction.user}",  topic = interaction.user.id, overwrites=overwrites)
+    channel_ticket = await ticket_category.create_text_channel(f"ticket-{interaction.user}",  topic = interaction.user.id, overwrites=overwrites)
     em_1 = discord.Embed(
         title = f"Help needed by {interaction.user}",
         description= f"Please wait for the staff team to get back to you. They created the ticket with reason : **{reason}**"
@@ -233,15 +259,11 @@ async def eval(interaction: discord.Interaction):
 
 async def application(interaction: discord.Interaction):
     guild = interaction.guild
-    log_channel = discord.utils.get(guild.text_channels, name='📛・moderation-logs')
+    
 
     global applicant
     #channel = aclient.get_channel(984434566204915742)
-    applicant= interaction.user
-    log_embed = discord.Embed(
-        title= "Member Applied for staff",
-        description= f"**Applicant**: {interaction.user.mention} \n **Application can be found in** : <#986941550166683659> ",
-        color = discord.Color.greyple())
+    
 
     await interaction.response.send_modal(application_modal())
 
@@ -290,6 +312,19 @@ async def on_member_join(member):
     
 
 """
+
+@tree.command(guild = discord.Object(id = 811461860200022025), name = 'invite', description = "Checks invite count")
+
+async def invites(interaction: discord.Interaction, user: discord.Member=None):
+    if user == None:
+       check_user = interaction.author
+    else:
+       check_user = user
+    total_invites = 0
+    for i in await interaction.guild.invites():
+        if i.inviter == check_user:
+            total_invites += i.uses
+    await interaction.response.send_message(f"{check_user.name} has invited {total_invites} member{'' if total_invites == 1 else 's'}!")
 @tree.command(
     guild = discord.Object(id = 811461860200022025), name = 'nightmare', description = "Pings nightmare. DON'T USE IN ANY CASE UNLESS YOU WANT TO BE BANNED!")
 async def nightmare(interaction: discord.Interaction):
