@@ -64,7 +64,16 @@ class client(discord.Client):
             self.add_view(button_view())
             self.added = True
         print(f"We have logged in as {self.user}.")
-        
+
+
+class ticket_button(discord.ui.View):
+    def __init__(self) -> None:
+        super().__init__(timeout=None)
+    
+    @discord.ui.button(label="Close", style = discord.ButtonStyle.red, custom_id="close")
+    async def close(self, interaction:discord.Interaction, button: discord.ui.Button):
+        await interaction.channel.delete()
+
 class button_view(discord.ui.View):
     def __init__(self) -> None:
         super().__init__(timeout=None)
@@ -210,7 +219,7 @@ async def ticket(interaction: discord.Interaction, reason :str):
     )
     em_1.set_thumbnail(url=interaction.user.avatar)
     em_1.set_author(name = interaction.user, icon_url= interaction.user.avatar)
-    await channel_ticket.send(embed=em_1)
+    await channel_ticket.send(embed=em_1, view=ticket_button())
     await interaction.response.send_message(f"Created your ticket channnel {channel_ticket.mention}" , )
 
 @tree.command( name = 'eval', description = "evaluate a piece of code")
