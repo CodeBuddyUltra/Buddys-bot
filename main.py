@@ -12,6 +12,7 @@ import interactions
 from typing import Literal
 import asyncio
 
+activity = discord.Activity(name='my activity', type=discord.ActivityType.watching)
 
 
 
@@ -30,14 +31,31 @@ from config import token
 
 class client(discord.Client):
     def __init__(self):
-        super().__init__(intents = discord.Intents.default())
+        super().__init__(intents = intents)
         self.synced= False
         self.added= False
         self.role = 986515497669525544
+
+    async def on_member_remove(self, member):
+        bye_bye_embed = discord.Embed(
+        title="Sorry to see you go!",
+        description= f"<:memberleave:986552554177593364> Sad to see you go {member.mention}. However if you feel like coming back we will always be waiting for you. \n \n Rejoin using [this link](https://discord.gg/F2tkagb7Br) ",
+        color= discord.Color.red()   )
+        bye_bye_embed.set_author(name = f"{member.name}", icon_url= member.avatar)
+        await member.send(f"Goodbye {member.mention}", embed=bye_bye_embed)
+
+    async def on_member_join(self, member):
+        welcome_embed = discord.Embed(
+        title="Welcome!",
+        description= f"<:memberadd:986552556476059739> Welcome the server {member.mention} \n Make sure to check out <#938830951545458698> and <#986515513658196010> \n \n Visit <#986515517957365810>, <#986515519010131988> or <#986515520780107786> to keep up with the bot's latest update" ,
+        color= discord.Color.green()   )
+        welcome_embed.set_author(name = f"{member.name}", icon_url= member.avatar)
+        await member.send(f"Welcome to the server {member.mention}", embed=welcome_embed)
+
     async def on_ready(self):
         await self.wait_until_ready()
         
-    
+
         
         if not self.synced:
             await tree.sync(guild = discord.Object(id = 811461860200022025))
@@ -53,14 +71,30 @@ class button_view(discord.ui.View):
 
     @discord.ui.button(label="Accept", style = discord.ButtonStyle.green, custom_id="accept")
     async def accept(self, interaction: discord.Interaction, button: discord.ui.Button):
+        accepted = discord.Embed(
+            title="Your Application has been accepted!",
+            description= "Your application has been accepted by the server admins. \n \n We warmly welcome you to our staff team and look forward to working together!",
+            color= discord.Color.green()
+        )
         if type(aclient.role) is not discord.Role:
             aclient.role = interaction.guild.get_role(986515497669525544)
-        if aclient.role not in interaction.user.roles:
-            await interaction.user.add_roles(aclient.role)
+        
+        if aclient.role not in applicant.roles:
+            await applicant.add_roles(aclient.role)
             await interaction.response.send_message(f"Successfully accepted the user as {aclient.role.mention}!", ephemeral=True)
+            await applicant.send(embed=accepted)
         else:
             await interaction.response.send_message(f"Can't accept an existing staff!", ephemeral=True)
 
+    @discord.ui.button(label="Deny", style= discord.ButtonStyle.red , custom_id="deny")
+    async def deny(self, interaction:discord.Interaction, button:discord.ui.Button):
+        denied = discord.Embed(
+            title = "Your application has been denied",
+            description="Your application has been reviewed by our server admins but unfortunately we had to deny your application",
+            color = discord.Color.red()
+            )
+        await interaction.response.send_message("Successfully denied user")
+        await applicant.send(embed=denied)
 class my_modal(ui.Modal, title = "Example Modal"):
     answer = ui.TextInput(label = "Is it working?", style=discord.TextStyle.short, placeholder = "Your username with discriminator", default = "Vixen#1203", required= True, max_length = 10)
     answer_2 = ui.TextInput(label = "Who Made this?", style=discord.TextStyle.short, placeholder = "Put in your password ", default = "qwertycommon", required= True, max_length = 50)
@@ -83,15 +117,21 @@ class application_modal(ui.Modal, title = "Application"):
 
     async def on_submit(self, interaction: discord.Interaction):
         guild = interaction.guild
-        channel = discord.utils.get(guild.text_channels, name='🔧・testing')
+        channel = discord.utils.get(guild.text_channels, name='🔧・applications')
 
+        log_channel = discord.utils.get(guild.text_channels, name='📛・moderation-logs')
+        log_embed = discord.Embed(
+        title= "Member Applied for staff",
+        description= f"**Applicant**: {interaction.user.mention} \n **Application can be found in** : <#986941550166683659> ",
+        color = discord.Color.greyple())
+        #log_embed.set_thumbnail(url=applicant.avatar_url)
         
         embed = discord.Embed(title = self.title,
         description= f"**{self.question_1.label}** \n {self.question_1} \n \n **{self.question_2.label}** \n {self.question_2} \n \n **{self.question_3.label}** \n {self.question_3} \n \n **{self.question_4.label}** \n {self.question_4} \n \n **{self.question_5.label}** \n {self.question_5}",
         colour= discord.Color.blurple())
         embed.set_author(name = interaction.user, icon_url=interaction.user.avatar)
 
-
+        await log_channel.send(embed=log_embed)
         await channel.send(embed=embed, view=button_view())
 aclient = client()
 tree = app_commands.CommandTree(aclient)
@@ -183,23 +223,40 @@ async def eval(interaction: discord.Interaction):
 @tree.command(  guild = discord.Object(id = 811461860200022025), name = 'application', description = "Staff application")
 
 async def application(interaction: discord.Interaction):
-    
-    channel = aclient.get_channel(984434566204915742)
+    guild = interaction.guild
+    log_channel = discord.utils.get(guild.text_channels, name='📛・moderation-logs')
 
-    
+    global applicant
+    #channel = aclient.get_channel(984434566204915742)
+    applicant= interaction.user
+    log_embed = discord.Embed(
+        title= "Member Applied for staff",
+        description= f"**Applicant**: {interaction.user.mention} \n **Application can be found in** : <#986941550166683659> ",
+        color = discord.Color.greyple())
+
     await interaction.response.send_modal(application_modal())
 
 
-@tree.command(name = 'warn', description = "Warns the member who runs the command | Currently in test phase")    
-async def warn(interaction: discord.Interaction):
+@tree.command( guild = discord.Object(id = 811461860200022025), name = 'warn', description = "Warns the member who runs the command | Currently in test phase")    
+async def warn(interaction: discord.Interaction, member: discord.Member, reason: str):
+    guild = interaction.guild
+    log_channel = discord.utils.get(guild.text_channels, name='📛・moderation-logs') 
     
-    await interaction.response.send_message(f"Warning you {interaction.user.mention}")
-    """
-    time.sleep(5)
-    await interaction.response.edit(content="You have been warned in the dms")
-    """
-    await interaction.user.send("You have been warned for using this slash command")
+    warn_embed = discord.Embed(
+        title= "You have been warned!",
+        description = f"You got warned in **{guild}** because: **{reason}**",
+        color= discord.Color.red()
+    )
+    log_embed = discord.Embed(
+        title= "Member warned",
+        description= f"**Warned Member**: {member.mention} \n **Moderator**: {interaction.user.mention} \n **Reason**: {reason} ",
+        color = discord.Color.greyple())
+    #log_embed.set_thumbnail(url = member.avatar_url)
 
+    
+    await log_channel.send(embed=log_embed)
+    await member.send(embed=warn_embed)
+    await interaction.response.send_message(f"Successfully warned {member.mention}")
 @tree.command(
     guild = discord.Object(id = 811461860200022025), name = 'test_2', description = "Command application test")
     
@@ -221,11 +278,7 @@ async def apply(interaction:discord.Interaction):
 """
 @client.event
 async def on_member_join(member):
-    welcome_embed = discord.Embed(
-        title="Welcome!",
-        description= f"<:memberadd:986552556476059739> Welcome the server {member.mention} \n Make sure to check out <#938830951545458698> and <#986515513658196010> \n \n Visit <#986515517957365810>, <#986515519010131988> or <#986515520780107786> to keep up with the bot's latest update"    )
-    welcome_embed.set_author(name = f"{member.name}", icon_url= member.avatar)
-    await member.send(f"Welcome to the server {member.mention}", embed=welcome_embed)
+    
 
 """
 @tree.command(
