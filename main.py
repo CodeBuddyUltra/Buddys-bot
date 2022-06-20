@@ -10,8 +10,10 @@ import json
 import time
 
 from typing import Literal
-
+import asyncio
 from datetime import datetime
+
+ 
 
 now = datetime.now()
 
@@ -19,9 +21,9 @@ current_time = now.strftime("%H:%M:%S")
 
 activity = discord.Activity(name='my activity', type=discord.ActivityType.watching)
 
+TICKET_CATEGORY_NAME = "📨 | ==== Support ==== | 📨"
 
 
-TICKET_CATEGORY_NAME = "Active Tickets"
 
 intents = discord.Intents.default()
 intents.members = True
@@ -70,7 +72,8 @@ class client(discord.Client):
 
     async def on_ready(self):
         await self.wait_until_ready()
-        """
+        
+        global TICKET_CATEGORY_NAME
         guild = aclient.get_guild(811461860200022025)
 
         uptime_channel = discord.utils.get(guild.text_channels, name='📡・bot-status')
@@ -84,9 +87,10 @@ class client(discord.Client):
 
 
         await uptime_channel.send(embed=uptime_embed)
-        """
+        
+        #TICKET_CATEGORY_NAME = discord.utils.get(interaction.guild.categories, name=TICKET_CATEGORY_NAME)
         if not self.synced:
-            await tree.sync(guild = discord.Object(id = 811461860200022025))
+            await tree.sync()
             self.synced = True
         if not self.added:
             self.add_view(button_view())
@@ -100,7 +104,10 @@ class ticket_button(discord.ui.View):
     
     @discord.ui.button(label="Close", style = discord.ButtonStyle.red, custom_id="close", emoji="<:delete:986581594192109648>")
     async def close(self, interaction:discord.Interaction, button: discord.ui.Button):
-        await interaction.channel.delete()
+        close_check = discord.Embed(
+        description="Are you sure you want to close this ticket?",
+        color = discord.Color.red())
+        await interaction.channel.send(embed=close_check, view= confirm_delete())
 
 class button_view(discord.ui.View):
     def __init__(self) -> None:
@@ -122,9 +129,13 @@ class button_view(discord.ui.View):
             await applicant.send(embed=accepted)
         else:
             await interaction.response.send_message(f"Can't accept an existing staff!", ephemeral=True)
+        
+        for child in self.children:
+            child.disabled=True
+        await button.response.edit_message(view=self)
 
     @discord.ui.button(label="Deny", style= discord.ButtonStyle.red , custom_id="deny")
-    async def deny(self, interaction:discord.Interaction, button:discord.ui.Button):
+    async def deny(self, button:discord.ui.Button, interaction:discord.Interaction):
         denied = discord.Embed(
             title = "Your application has been denied",
             description="Your application has been reviewed by our server admins but unfortunately we had to deny your application",
@@ -132,6 +143,9 @@ class button_view(discord.ui.View):
             )
         await interaction.response.send_message("Successfully denied user")
         await applicant.send(embed=denied)
+        for child in self.children:
+            child.disabled=True
+        await button.response.edit_message(view=self)
 class my_modal(ui.Modal, title = "Example Modal"):
     answer = ui.TextInput(label = "Is it working?", style=discord.TextStyle.short, placeholder = "Your username with discriminator", default = "Vixen#1203", required= True, max_length = 10)
     answer_2 = ui.TextInput(label = "Who Made this?", style=discord.TextStyle.short, placeholder = "Put in your password ", default = "qwertycommon", required= True, max_length = 50)
@@ -168,52 +182,78 @@ class application_modal(ui.Modal, title = "Application"):
         colour= discord.Color.blurple())
         embed.set_author(name = interaction.user, icon_url=interaction.user.avatar)
 
+        await interaction.response.send_message("Your application has been submitted. We will review it an let you know soon")
         await log_channel.send(embed=log_embed)
         await channel.send(embed=embed, view=button_view())
 aclient = client()
 tree = app_commands.CommandTree(aclient)
 
-@tree.command( name = 'modal', description = "Testing the modals feature")
+@tree.command( name = 'remarks', description = "What do you think about the bot?")
 async def modal(interaction: discord.Interaction):
     await interaction.response.send_modal(my_modal())
 
-@tree.command( name = 'fruits', description='testing') 
-async def slash2(interaction: discord.Interaction, fruits: Literal['apple', 'banana', 'cherry']):
-    await interaction.response.send_message(f"You chose {fruits}!", ephemeral = True)
 
-@tree.command( name = 'test', description = "A simple test")
-async def test(interaction: discord.Interaction):
-    await interaction.response.send_message("Hey the test worked!")
 
-@tree.command( guild = discord.Object(id = 811461860200022025), name = 'create_channel', description = "Creates a test channel")
-async def create_channel(interaction: discord.Interaction, channel_type: Literal['text', 'voice', 'stage'], name: str, topic:str = None, category: discord.CategoryChannel = None, slowmode:int = None):
+@tree.command(name = "set_ticket_category", description= "Sets the ticket category for your guild")
+async def set_ticket_category(interaction:discord.Interaction, category: discord.CategoryChannel):
+    global TICKET_CATEGORY_NAME
+    TICKET_CATEGORY_NAME = category
+    await interaction.response.send_message(f"Successfully set your ticket category as {category.mention}")
+    
+
+@tree.command( name = 'create_channel', description = "Creates a test channel")
+async def create_channel(interaction: discord.Interaction, channel_type: Literal['text', 'voice', 'stage'], name: str, topic:str = None, category: discord.CategoryChannel = None, slowmode:int = None, delete_after:int = None):
     guild = interaction.guild
     if channel_type == "text":
         try:
-            channel = await category.create_text_channel(f"{name}", topic=topic, slowmode_delay=slowmode)
-            await interaction.response.send_message(f"It worked. Channel has been created with name {channel.mention}")
-            time.sleep(10)
-            await channel.delete()
+            if category is not None:
+                channel = await category.create_text_channel(f"{name}", topic=topic, slowmode_delay=slowmode)
+                await interaction.response.send_message(f"It worked. Channel has been created with name {channel.mention}")
+            else: 
+                channel = await guild.create_text_channel(f"{name}", topic=topic, slowmode_delay=slowmode)
+                await interaction.response.send_message(f"It worked. Channel has been created with name {channel.mention}")
+            if delete_after is not None:
+                time.sleep(delete_after)
+                await channel.delete()
         except Exception as e:
             await interaction.response.send_message(e)
         
     elif channel_type == "voice":
+        
         try:
-            channel = await category.create_voice_channel(f"{name}")
-            await interaction.response.send_message(f"It worked. Channel has been created with name {channel.mention}")
-            time.sleep(10)
-            await channel.delete()
+            if category is not None:
+                channel = await category.create_voice_channel(f"{name}")
+                await interaction.response.send_message(f"It worked. Channel has been created with name {channel.mention}")
+            else:
+                channel = await guild.create_voice_channel(f"{name}")
+                await interaction.response.send_message(f"It worked. Channel has been created with name {channel.mention}")
+            if delete_after is not None:
+                time.sleep(delete_after)
+                await channel.delete()
         except Exception as e:
             await interaction.response.send_message(e)
     else:
+        
         try:
-            
-            channel = await category.create_stage_channel(topic=f"{topic}", name=f"{name}")
-            await interaction.response.send_message(f"It worked. Channel has been created with name {channel.mention}")
-            time.sleep(10)
-            await channel.delete()
+            if category is not None:
+                if topic is not None:
+                    channel = await category.create_stage_channel(topic=f"{topic}", name=f"{name}")
+                    await interaction.response.send_message(f"It worked. Channel has been created with name {channel.mention}")
+                else:
+                    await interaction.response.send_message(f"Creating Stage channel requires a topic. Flag topic is necessary")
+            else:
+                if topic is not None:
+                    channel = await category.create_stage_channel(topic=f"{topic}", name=f"{name}")
+                    await interaction.response.send_message(f"It worked. Channel has been created with name {channel.mention}")
+                else:
+                    await interaction.response.send_message(f"Creating Stage channel requires a topic. Flag topic is necessary")
+                
+                
+            if delete_after is not None:
+                time.sleep(delete_after)
+                await channel.delete()
         except Exception as e:
-            await interaction.response.send_message(e)
+            print(e)
 
         
 
@@ -221,7 +261,18 @@ async def create_channel(interaction: discord.Interaction, channel_type: Literal
 async def mention(interaction: discord.Interaction , user_to_mention: discord.User):
     await interaction.response.send_message(f"{user_to_mention.mention} mentioned by {interaction.user.mention}")    
 
-@tree.command(  guild = discord.Object(id = 811461860200022025),name = 'ticket', description = "Creates a support ticket")
+class confirm_delete(discord.ui.View):
+    def __init__(self) -> None:
+        super().__init__(timeout=None)
+    
+    @discord.ui.button(label="Yes", style = discord.ButtonStyle.green, custom_id="yes")
+    async def confirm(self, interaction:discord.Interaction, button: discord.ui.Button):
+        await interaction.channel.delete()
+
+    @discord.ui.button(label="No", style = discord.ButtonStyle.red, custom_id="no")
+    async def no(self, interaction:discord.Interaction, button: discord.ui.Button):
+        await interaction.message.delete()
+@tree.command(name = 'ticket', description = "Creates a support ticket")
 async def ticket(interaction: discord.Interaction, reason :str):
     guild = interaction.guild
     """options = [interaction.Option(
@@ -238,26 +289,36 @@ async def ticket(interaction: discord.Interaction, reason :str):
         guild.me: discord.PermissionOverwrite(view_channel=True)
         
     }
-    ticket_category = discord.utils.get(interaction.guild.categories, name="📨 | ==== Support ==== | 📨")
+    if TICKET_CATEGORY_NAME is not None:
+        ticket_category = discord.utils.get(interaction.guild.categories, name=TICKET_CATEGORY_NAME)
+    #elif type(TICKET_CATEGORY_NAME) is None:
+        #channel_ticket = await guild.create_text_channel(name= f"ticket-{interaction.user}", topic = interaction.user.id)
+    else:
+        ticket_category = interaction.channel.category
+
     
-    channel_ticket = await ticket_category.create_text_channel(f"ticket-{interaction.user}",  topic = interaction.user.id, overwrites=overwrites)
+    
     em_1 = discord.Embed(
         title = f"Help needed by {interaction.user}",
         description= f"Please wait for the staff team to get back to you. They created the ticket with reason : **{reason}**"
     )
     em_1.set_thumbnail(url=interaction.user.avatar)
     em_1.set_author(name = interaction.user, icon_url= interaction.user.avatar)
-    await channel_ticket.send(embed=em_1, view=ticket_button())
-    await interaction.response.send_message(f"Created your ticket channnel {channel_ticket.mention}" , )
-
+    await channel_ticket.send(f"{interaction.user.mention} | <@&986515497669525544>", embed=em_1, view=ticket_button())
+    await interaction.response.send_message(f"<a:loading:986581366563016744> Creating your ticket..")
+    channel_ticket = await ticket_category.create_text_channel(f"ticket-{interaction.user}",  topic = interaction.user.id, overwrites=overwrites)
+    await interaction.edit_original_message(content = f"Created your ticket channnel {channel_ticket.mention}" )
+    
+    
+"""
 @tree.command( name = 'eval', description = "evaluate a piece of code")
 
 async def eval(interaction: discord.Interaction):
     
     await interaction.response.send_message("Evaluated your code")
 
-
-@tree.command(  guild = discord.Object(id = 811461860200022025), name = 'application', description = "Staff application")
+"""
+@tree.command( name = 'application', description = "Staff application")
 
 async def application(interaction: discord.Interaction):
     guild = interaction.guild
@@ -265,12 +326,12 @@ async def application(interaction: discord.Interaction):
 
     global applicant
     #channel = aclient.get_channel(984434566204915742)
-    
+    applicant = interaction.user
 
     await interaction.response.send_modal(application_modal())
 
 
-@tree.command( guild = discord.Object(id = 811461860200022025), name = 'warn', description = "Warns the member who runs the command | Currently in test phase")    
+@tree.command( name = 'warn', description = "Warns the member who runs the command | Currently in test phase")    
 async def warn(interaction: discord.Interaction, member: discord.Member, reason: str):
     guild = interaction.guild
     log_channel = discord.utils.get(guild.text_channels, name='📛・moderation-logs') 
@@ -375,7 +436,7 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
     else: raise error
 
 @tree.command(
-    guild = discord.Object(id = 811461860200022025), name = 'slowmode', description = "Set the slowmode")
+     name = 'slowmode', description = "Set the slowmode")
 async def slowmode(interaction:discord.Interaction, channel: discord.TextChannel, slowmode:int):
     slow_embed = discord.Embed(
         title="Setting Slowmode",
@@ -394,7 +455,7 @@ async def slowmode(interaction:discord.Interaction, channel: discord.TextChannel
     )
         await interaction.response.send_message(embed=slow_embed)
     
-@tree.command(guild = discord.Object(id = 811461860200022025), name = 'help', description = "Gets help about various commands")
+@tree.command( name = 'help', description = "Gets help about various commands| Still being updated")
 async def help(interaction:discord.Interaction):
     emb_help = discord.Embed(
         title= "Help has arrived",
