@@ -1,13 +1,10 @@
-
-
-
-
 import aiohttp
 import discord
 from discord import  ui, app_commands
 
 import json
 import time
+import os
 
 from typing import Literal
 import asyncio
@@ -97,11 +94,35 @@ class client(discord.Client):
             self.added = True
         print(f"We have logged in as {self.user}.")
 
+class transcipt_button(discord.ui.View):
+    def __init__(self) -> None:
+        super().__init__(timeout=None)
+    
+    @discord.ui.button(label = "Transcript", style = discord.ButtonStyle.blurple, custom_id = "transcript")
+    async def transcript(self, interaction, button):
+        await interaction.response.defer()
+        if os.path.exists(f"{interaction.channel.id}.md"): 
+            return await interaction.followup.send("A transcript is already being generated!", ephemeral = True)
+        with open(f"{interaction.channel.id}.md", 'a') as f:
+            f.write(f'# Transcript of {interaction.channel.name}:\n\n')
+            async for message in interaction.channel.history(limit = None, oldest_first = True):
+                created = datetime.strftime(message.created_at, "%m/%d/%Y at %H:%M:%S") 
+                if message.edited_at:
+                    edited = datetime.strftime(message.edited_at, "%m/%d/%Y at %H:%M:%S")
+                    f.write(f"{message.author} on {created}: {message.clean_content} (Edited at {edited})\n")
+                else: 
+                    f.write(f"{message.author} on {created}: {message.clean_content}\n")
+            generated = datetime.now().strftime("%m/%d/%Y at %H:%M:%S")
+            f.write(f"\n*Generated at {generated} by {aclient.user.name}*\n*Date Formatting: MM/DD/YY*\n*Time Zone: UTC*")
+
+        with open(f"{interaction.channel.id}.md", 'rb') as f:
+            await interaction.followup.send(file=discord.File(f, f"Transcript for {interaction.channel.name}.md"))
+        os.remove(f"{interaction.channel.id}.md")
 
 class ticket_button(discord.ui.View):
     def __init__(self) -> None:
         super().__init__(timeout=None)
-    
+
     @discord.ui.button(label="Close", style = discord.ButtonStyle.red, custom_id="close", emoji="<:delete:986581594192109648>")
     async def close(self, interaction:discord.Interaction, button: discord.ui.Button):
         close_check = discord.Embed(
@@ -267,7 +288,9 @@ class confirm_delete(discord.ui.View):
     
     @discord.ui.button(label="Yes", style = discord.ButtonStyle.green, custom_id="yes")
     async def confirm(self, interaction:discord.Interaction, button: discord.ui.Button):
-        await interaction.channel.delete()
+        await interaction.channel.send("Ticket will be deleted shortly", view = transcipt_button())
+        await asyncio.sleep(120)
+        interaction.channel.delete
 
     @discord.ui.button(label="No", style = discord.ButtonStyle.red, custom_id="no")
     async def no(self, interaction:discord.Interaction, button: discord.ui.Button):
@@ -282,22 +305,24 @@ async def ticket(interaction: discord.Interaction, reason :str):
                     required=True,
                 )]
                 """
-    # ticket_category = 982138241371226122
+    ticket_category = discord.utils.get(guild.categories, name=TICKET_CATEGORY_NAME) 
+    #ticket_category = 982138241371226122
     overwrites = {
         guild.default_role: discord.PermissionOverwrite(view_channel=False),
         interaction.user: discord.PermissionOverwrite(view_channel=True),
         guild.me: discord.PermissionOverwrite(view_channel=True)
         
     }
+    """
     if TICKET_CATEGORY_NAME is not None:
         ticket_category = discord.utils.get(interaction.guild.categories, name=TICKET_CATEGORY_NAME)
     #elif type(TICKET_CATEGORY_NAME) is None:
         #channel_ticket = await guild.create_text_channel(name= f"ticket-{interaction.user}", topic = interaction.user.id)
     else:
         ticket_category = interaction.channel.category
-
-    
-    
+    """
+    await interaction.response.send_message(f"<a:loading:986581366563016744> Creating your ticket..")
+    channel_ticket = await ticket_category.create_text_channel(f"ticket-{interaction.user}",  topic = interaction.user.id, overwrites=overwrites)
     em_1 = discord.Embed(
         title = f"Help needed by {interaction.user}",
         description= f"Please wait for the staff team to get back to you. They created the ticket with reason : **{reason}**"
@@ -305,8 +330,8 @@ async def ticket(interaction: discord.Interaction, reason :str):
     em_1.set_thumbnail(url=interaction.user.avatar)
     em_1.set_author(name = interaction.user, icon_url= interaction.user.avatar)
     await channel_ticket.send(f"{interaction.user.mention} | <@&986515497669525544>", embed=em_1, view=ticket_button())
-    await interaction.response.send_message(f"<a:loading:986581366563016744> Creating your ticket..")
-    channel_ticket = await ticket_category.create_text_channel(f"ticket-{interaction.user}",  topic = interaction.user.id, overwrites=overwrites)
+    
+    
     await interaction.edit_original_message(content = f"Created your ticket channnel {channel_ticket.mention}" )
     
     
@@ -393,9 +418,18 @@ async def invites(interaction: discord.Interaction, user: discord.Member=None):
 async def nightmare(interaction: discord.Interaction):
    await interaction.response.send_message("Sorry but !<@696292497848008704>")
 
+
+"""
+@tree.command(
+     name = 'setup', description = "Sets up the required channel")
+
+
+
+
+
 @tree.command(
      name = 'cat', description = "Cute cat images")
-@app_commands.checks.cooldown(1,5, key=lambda i: (i.user.id))
+#@app_commands.checks.cooldown(1,5, key=lambda i: (i.user.id))
 
 async def cat(interaction: discord.Interaction):
     await interaction.response.defer()
@@ -434,7 +468,7 @@ async def on_app_command_error(interaction: discord.Interaction, error: app_comm
         )
         await interaction.response.send_message(embed=em_error, ephemeral=True)
     else: raise error
-
+"""
 @tree.command(
      name = 'slowmode', description = "Set the slowmode")
 async def slowmode(interaction:discord.Interaction, channel: discord.TextChannel, slowmode:int):
@@ -462,7 +496,80 @@ async def help(interaction:discord.Interaction):
         description= "Let me walk you through the commands: \n **This bot does not have any prefix. It responds to slash (`/`) commands.** \n \n `/create_channel`: This command is self-explanatory. It helps you create the channel of your wish \n \n `/slowmode`: This command sets the slowmode of the channel",
         colour= discord.Color.blurple())
     await interaction.response.send_message(embed=emb_help)   
-        
+
+
+@tree.command(name = 'nuke', description = "Nukes the current channel")
+
+async def nuke(interaction: discord.Interaction):
+    channel = interaction.channel
+    
+    new_channel = await channel.clone(reason="Has been Nuked!")
+    await channel.delete()
+    await new_channel.send(f"Channel Nuked by `{interaction.user}` ")
+
+"""
+@tree.command(name = 'ban', description = "Bans the required member")
+
+async def ban(self, interaction: discord.Interaction , member: discord.Member, reason: str=None):
+    await member.ban(reason=reason)
+    await interaction.response.send_message(f'User {member} has been banned')
+
+"""
+"""
+@tree.command(name = 'clone', description="Clones all the channels")
+async def clone(interaction: discord.Interaction):
+    text_channel_list = []
+    for guild in interaction.guild:
+        for channel in guild.text_channels:
+            text_channel_list.append(channel)
+    try: 
+        for i in range (len(text_channel_list)):
+            channel = text_channel_list[i]
+            await channel.clone(reason = "Clone command has been done")
+            
+        await interaction.response.send_message("Cloned all the text channels in the guild successfully")
+    except:
+        await interaction.response.send_message("Clone cmd failed. Please contact the bot dev")
+"""
+
+@tree.command(name = 'transcript', description='Generates a transcript for a ticket') #guild specific slash command
+async def transcript(interaction: discord.Interaction): 
+  if "ticket-" in interaction.channel.name:
+    await interaction.response.defer()
+    if os.path.exists(f"{interaction.channel.id}.md"):
+        return await interaction.followup.send(f"A transcript is already being generated!", ephemeral = True)
+    with open(f"{interaction.channel.id}.md", 'a') as f:
+        f.write(f"# Transcript of {interaction.channel.name}:\n\n")
+        async for message in interaction.channel.history(limit = None, oldest_first = True):
+            created = datetime.strftime(message.created_at, "%m/%d/%Y at %H:%M:%S")
+            if message.edited_at:
+                edited = datetime.strftime(message.edited_at, "%m/%d/%Y at %H:%M:%S")
+                f.write(f"{message.author} on {created}: {message.clean_content} (Edited at {edited})\n")
+            else:
+                f.write(f"{message.author} on {created}: {message.clean_content}\n")
+        generated = datetime.now().strftime("%m/%d/%Y at %H:%M:%S")
+        f.write(f"\n*Generated at {generated} by {aclient.user.name}*\n*Date Formatting: MM/DD/YY*\n*Time Zone: UTC*")
+    with open(f"{interaction.channel.id}.md", 'rb') as f:
+        await interaction.followup.send(file = discord.File(f, f"{interaction.channel.name}.md"))
+    os.remove(f"{interaction.channel.id}.md")
+  else: await interaction.response.send_message("This isn't a ticket!", ephemeral = True)
+
+@tree.context_menu(name = "Open a Ticket")
+async def open_ticket_context_menu(interaction: discord.Interaction, user: discord.Member):
+    await interaction.response.defer(ephemeral = True)
+    ticket = discord.utils.get(interaction.guild.text_channels, name =f"ticket-{interaction.user.name}")
+    if ticket is not None: await interaction.followup.send(f"{interaction.user.mention} already has a ticket open at {ticket.mention}!", ephemeral = True)
+    else:
+        if type(client.ticket_mod) is not discord.Role: 
+            aclient.ticket_mod = interaction.guild.get_role(986515496356708403)
+        overwrites = {
+            interaction.guild.default_role: discord.PermissionOverwrite(view_channel = False),
+            interaction.user: discord.PermissionOverwrite(view_channel = True, read_message_history = True, send_messages = True, attach_files = True, embed_links = True),
+            interaction.guild.me: discord.PermissionOverwrite(view_channel = True, send_messages = True, read_message_history = True), 
+            aclient.ticket_mod: discord.PermissionOverwrite(view_channel = True, read_message_history = True, send_messages = True, attach_files = True, embed_links = True),
+        }
+        try: channel = await interaction.guild.create_text_channel(name = f"ticket-{interaction.user.name}", overwrites = overwrites, reason = f"Ticket for {user}, generated by {interaction.user}")
+        except: return await interaction.followup.send("Ticket creation failed! Make sure I have `manage_channels` permissions!", ephemeral = True)
+        await channel.send(f"{interaction.user.mention} created a ticket for {user.mention}!", view= ticket_button())
+        await interaction.followup.send(f"I've opened a ticket for {interaction.user.mention} at {channel.mention}!", ephemeral = True)
 aclient.run(token)
-
-
