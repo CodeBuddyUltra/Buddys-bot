@@ -272,6 +272,11 @@ class confirm_delete(discord.ui.View):
     @discord.ui.button(label="No", style = discord.ButtonStyle.red, custom_id="no")
     async def no(self, interaction:discord.Interaction, button: discord.ui.Button):
         await interaction.message.delete()
+      
+ @tree.command(name = "setticketcategory, description = "sets ticket category"):
+               async def ticket_category(interaction: discord.Interaction, category = discord.Category):
+                TICKET_CATEGORY_NAME = category
+                return TICKET_CATEGORY_NAME
 @tree.command(name = 'ticket', description = "Creates a support ticket")
 async def ticket(interaction: discord.Interaction, reason :str):
     guild = interaction.guild
